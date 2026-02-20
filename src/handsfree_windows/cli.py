@@ -399,10 +399,20 @@ def drag_cmd(
     start_y: int = typer.Option(..., help="Start Y (window-relative)"),
     end_x: int = typer.Option(..., help="End X (window-relative)"),
     end_y: int = typer.Option(..., help="End Y (window-relative)"),
+    duration_ms: int = typer.Option(400, help="Drag duration in ms"),
+    steps: int = typer.Option(30, help="Interpolation steps"),
 ):
     """Drag mouse from start->end using window-relative coords."""
     w = uia.focus_window(**_window_kwargs(title, title_regex, handle))
-    uia.drag(w, start_x=start_x, start_y=start_y, end_x=end_x, end_y=end_y)
+    uia.drag(
+        w,
+        start_x=start_x,
+        start_y=start_y,
+        end_x=end_x,
+        end_y=end_y,
+        duration_ms=duration_ms,
+        steps=steps,
+    )
     console.print(f"Dragged ({start_x},{start_y}) -> ({end_x},{end_y})")
 
 
