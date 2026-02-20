@@ -436,6 +436,8 @@ def drag_screen_cmd(
     end_y: int = typer.Option(..., help="End Y (screen)"),
     duration_ms: int = typer.Option(600, help="Drag duration in ms"),
     steps: int = typer.Option(40, help="Interpolation steps"),
+    pre_hold_ms: int = typer.Option(140, help="Hold after mouse-down before moving (ms)"),
+    post_hold_ms: int = typer.Option(60, help="Hold before mouse-up (ms)"),
 ):
     """Drag using absolute screen coordinates."""
     uia.drag_screen(
@@ -445,6 +447,8 @@ def drag_screen_cmd(
         end_y=end_y,
         duration_ms=duration_ms,
         steps=steps,
+        pre_hold_ms=pre_hold_ms,
+        post_hold_ms=post_hold_ms,
     )
     console.print(f"Dragged screen ({start_x},{start_y}) -> ({end_x},{end_y})")
 

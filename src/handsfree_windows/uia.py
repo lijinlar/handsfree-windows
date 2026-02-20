@@ -366,14 +366,21 @@ def drag_screen(
     button: str = "left",
     duration_ms: int = 300,
     steps: int = 25,
+    pre_hold_ms: int = 120,
+    post_hold_ms: int = 50,
 ) -> None:
-    """Drag using absolute screen coordinates (preferred when client offsets are ambiguous)."""
+    """Drag using absolute screen coordinates.
+
+    Some apps (notably Paint / ink surfaces) need a small dwell time after mouse down
+    before movement is recognized as a drag.
+    """
     from pywinauto import mouse
     import time
 
     sx, sy = int(start_x), int(start_y)
     ex, ey = int(end_x), int(end_y)
 
+    # Try builtin drag first
     if hasattr(mouse, "drag"):
         try:
             mouse.drag(coords=(sx, sy), coords2=(ex, ey))
@@ -385,7 +392,16 @@ def drag_screen(
     duration_ms = max(0, int(duration_ms))
     sleep_s = (duration_ms / 1000.0) / steps if steps else 0
 
+    # Ensure we actually move there before pressing
+    try:
+        mouse.move(coords=(sx, sy))
+        time.sleep(0.02)
+    except Exception:
+        pass
+
     mouse.press(button=button, coords=(sx, sy))
+    time.sleep(max(0, int(pre_hold_ms)) / 1000.0)
+
     try:
         for i in range(1, steps + 1):
             x = int(sx + (ex - sx) * (i / steps))
@@ -394,6 +410,7 @@ def drag_screen(
             if sleep_s:
                 time.sleep(sleep_s)
     finally:
+        time.sleep(max(0, int(post_hold_ms)) / 1000.0)
         mouse.release(button=button, coords=(ex, ey))
 
 
