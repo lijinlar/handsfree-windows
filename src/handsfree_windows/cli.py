@@ -455,6 +455,54 @@ def drag_screen_cmd(
     console.print(f"Dragged screen ({start_x},{start_y}) -> ({end_x},{end_y})")
 
 
+@app.command("drag-canvas")
+def drag_canvas_cmd(
+    title: Optional[str] = typer.Option(None, help="Exact window title"),
+    title_regex: Optional[str] = typer.Option(None, help="Regex window title"),
+    handle: Optional[int] = typer.Option(None, help="Window handle"),
+    pad: int = typer.Option(30, help="Padding inside the detected canvas rect"),
+    x1: float = typer.Option(0.15, help="Start X as fraction of canvas width (0-1)"),
+    y1: float = typer.Option(0.20, help="Start Y as fraction of canvas height (0-1)"),
+    x2: float = typer.Option(0.65, help="End X as fraction of canvas width (0-1)"),
+    y2: float = typer.Option(0.55, help="End Y as fraction of canvas height (0-1)"),
+    duration_ms: int = typer.Option(1200, help="Drag duration in ms"),
+    steps: int = typer.Option(120, help="Interpolation steps"),
+    pre_hold_ms: int = typer.Option(220, help="Hold after mouse-down before moving (ms)"),
+    post_hold_ms: int = typer.Option(120, help="Hold before mouse-up (ms)"),
+    backend: str = typer.Option("sendinput", help="Drag backend: pywinauto|sendinput"),
+):
+    """Drag within the largest detected canvas/content area of a window.
+
+    This avoids guessing screen coordinates and ensures the drag starts inside the canvas.
+    """
+    w = uia.focus_window(**_window_kwargs(title, title_regex, handle))
+    _elem, r = discover.largest_child_pane(w)
+    r = r.inset(int(pad))
+
+    def clamp01(v: float) -> float:
+        return max(0.0, min(1.0, float(v)))
+
+    sx = int(r.left + clamp01(x1) * max(1, r.width - 1))
+    sy = int(r.top + clamp01(y1) * max(1, r.height - 1))
+    ex = int(r.left + clamp01(x2) * max(1, r.width - 1))
+    ey = int(r.top + clamp01(y2) * max(1, r.height - 1))
+
+    uia.drag_screen(
+        start_x=sx,
+        start_y=sy,
+        end_x=ex,
+        end_y=ey,
+        duration_ms=duration_ms,
+        steps=steps,
+        pre_hold_ms=pre_hold_ms,
+        post_hold_ms=post_hold_ms,
+        backend=backend,
+    )
+    console.print(
+        f"Dragged inside canvas: ({sx},{sy}) -> ({ex},{ey}) | canvas={r.left},{r.top},{r.right},{r.bottom}"
+    )
+
+
 @app.command("run")
 def run_macro_cmd(path: Path = typer.Argument(..., exists=True)):
     """Run a YAML macro."""
