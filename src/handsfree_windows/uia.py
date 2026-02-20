@@ -134,17 +134,37 @@ def find_control(
     raise ValueError("Provide one of: control, auto_id, name, name_regex")
 
 
+def _wait_enabled(ctrl: BaseWrapper, timeout: int = 10) -> None:
+    import time
+
+    end = time.time() + timeout
+    while time.time() < end:
+        try:
+            if getattr(ctrl, "is_enabled", None) and ctrl.is_enabled():
+                return
+        except Exception:
+            pass
+        time.sleep(0.1)
+
+
 def click_control(ctrl: BaseWrapper) -> None:
-    ctrl.wait("enabled", timeout=10)
+    _wait_enabled(ctrl, timeout=10)
     try:
         ctrl.click_input()
     except Exception:
         # Fallback for some controls
-        ctrl.invoke()
+        try:
+            ctrl.invoke()
+        except Exception:
+            # Last resort: click at center
+            r = ctrl.rectangle()
+            from pywinauto import mouse
+
+            mouse.click(coords=(int(r.mid_point().x), int(r.mid_point().y)))
 
 
 def type_into(ctrl: BaseWrapper, text: str, enter: bool = False) -> None:
-    ctrl.wait("enabled", timeout=10)
+    _wait_enabled(ctrl, timeout=10)
     try:
         ctrl.set_focus()
     except Exception:
