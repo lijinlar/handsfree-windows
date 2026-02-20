@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import macro, tree, uia
+from . import discover, macro, tree, uia
 
 app = typer.Typer(add_completion=False, help="Handsfree Windows: control apps via UI Automation (UIA)")
 console = Console()
@@ -390,6 +390,18 @@ def click_at_cmd(
     console.print(f"Clicked at ({x},{y})")
 
 
+@app.command("canvas-selector")
+def canvas_selector(
+    title: Optional[str] = typer.Option(None, help="Exact window title"),
+    title_regex: Optional[str] = typer.Option(None, help="Regex window title"),
+    handle: Optional[int] = typer.Option(None, help="Window handle"),
+):
+    """Heuristic: output selector JSON for the largest pane/custom/document inside a window."""
+    w = uia.focus_window(**_window_kwargs(title, title_regex, handle))
+    sel = discover.selector_for_largest_pane(w)
+    console.print(json.dumps(sel, ensure_ascii=False, indent=2))
+
+
 @app.command("drag")
 def drag_cmd(
     title: Optional[str] = typer.Option(None, help="Exact window title"),
@@ -414,6 +426,27 @@ def drag_cmd(
         steps=steps,
     )
     console.print(f"Dragged ({start_x},{start_y}) -> ({end_x},{end_y})")
+
+
+@app.command("drag-screen")
+def drag_screen_cmd(
+    start_x: int = typer.Option(..., help="Start X (screen)"),
+    start_y: int = typer.Option(..., help="Start Y (screen)"),
+    end_x: int = typer.Option(..., help="End X (screen)"),
+    end_y: int = typer.Option(..., help="End Y (screen)"),
+    duration_ms: int = typer.Option(600, help="Drag duration in ms"),
+    steps: int = typer.Option(40, help="Interpolation steps"),
+):
+    """Drag using absolute screen coordinates."""
+    uia.drag_screen(
+        start_x=start_x,
+        start_y=start_y,
+        end_x=end_x,
+        end_y=end_y,
+        duration_ms=duration_ms,
+        steps=steps,
+    )
+    console.print(f"Dragged screen ({start_x},{start_y}) -> ({end_x},{end_y})")
 
 
 @app.command("run")

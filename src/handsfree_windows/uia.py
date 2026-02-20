@@ -351,6 +351,52 @@ def click_at(window: BaseWrapper, x: int, y: int, button: str = "left") -> None:
     mouse.click(button=button, coords=(sx, sy))
 
 
+def click_screen(x: int, y: int, button: str = "left") -> None:
+    """Click at absolute screen coordinates."""
+    from pywinauto import mouse
+
+    mouse.click(button=button, coords=(int(x), int(y)))
+
+
+def drag_screen(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    button: str = "left",
+    duration_ms: int = 300,
+    steps: int = 25,
+) -> None:
+    """Drag using absolute screen coordinates (preferred when client offsets are ambiguous)."""
+    from pywinauto import mouse
+    import time
+
+    sx, sy = int(start_x), int(start_y)
+    ex, ey = int(end_x), int(end_y)
+
+    if hasattr(mouse, "drag"):
+        try:
+            mouse.drag(coords=(sx, sy), coords2=(ex, ey))
+            return
+        except Exception:
+            pass
+
+    steps = max(1, int(steps))
+    duration_ms = max(0, int(duration_ms))
+    sleep_s = (duration_ms / 1000.0) / steps if steps else 0
+
+    mouse.press(button=button, coords=(sx, sy))
+    try:
+        for i in range(1, steps + 1):
+            x = int(sx + (ex - sx) * (i / steps))
+            y = int(sy + (ey - sy) * (i / steps))
+            mouse.move(coords=(x, y))
+            if sleep_s:
+                time.sleep(sleep_s)
+    finally:
+        mouse.release(button=button, coords=(ex, ey))
+
+
 def drag(
     window: BaseWrapper,
     start_x: int,
