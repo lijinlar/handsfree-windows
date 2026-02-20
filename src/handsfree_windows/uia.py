@@ -8,6 +8,8 @@ from pywinauto import Desktop
 from pywinauto.base_wrapper import BaseWrapper
 from pywinauto.findwindows import ElementNotFoundError
 
+from .selectors import resolve_selector_path, selector_path_from_element, SelectorStep
+
 
 @dataclass
 class WindowSpec:
@@ -172,3 +174,78 @@ def wait_for_control(window: BaseWrapper, timeout: int = 20, **find_kwargs) -> B
             last_err = e
             time.sleep(0.5)
     raise TimeoutError(f"Control not found within {timeout}s. Last error: {last_err}")
+
+
+def element_from_point(x: int, y: int) -> BaseWrapper:
+    """Get the UIA element under screen coordinates (x, y)."""
+    return _desktop().from_point(x, y)
+
+
+def cursor_pos() -> tuple[int, int]:
+    """Current cursor position (screen coords). Uses win32api if available."""
+    try:
+        import win32api  # type: ignore
+
+        x, y = win32api.GetCursorPos()
+        return int(x), int(y)
+    except Exception:
+        # Fallback via ctypes
+        import ctypes
+
+        class POINT(ctypes.Structure):
+            _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+        pt = POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+        return int(pt.x), int(pt.y)
+
+
+def top_level_window_for(elem: BaseWrapper) -> BaseWrapper:
+    """Find the nearest top-level window ancestor for an element."""
+    cur = elem
+    for _ in range(256):
+        parent = getattr(cur.element_info, "parent", None)
+        if parent is None:
+            break
+        try:
+            pwrap = parent.wrapper_object()
+        except Exception:
+            break
+
+        # A top-level window typically has no parent, or its parent is the Desktop.
+        # pywinauto wrapper has .top_level_parent(), but it can fail for some elements.
+        try:
+            tl = cur.top_level_parent()
+            if tl is not None:
+                return tl
+        except Exception:
+            pass
+
+        cur = pwrap
+
+    # Last resort: return element itself
+    return elem
+
+
+def selector_for_element(elem: BaseWrapper) -> dict:
+    """Build a selector payload for an element: window spec + control path."""
+    win = top_level_window_for(elem)
+    try:
+        win_title = win.window_text()
+    except Exception:
+        win_title = ""
+
+    path = selector_path_from_element(elem, win)
+    return {
+        "window": {
+            "title": win_title,
+            "handle": int(win.handle),
+            "pid": int(getattr(win, "process_id", lambda: -1)()),
+        },
+        "path": [s.to_dict() for s in path],
+    }
+
+
+def resolve_selector(window: BaseWrapper, path: list[dict]) -> BaseWrapper:
+    steps = [SelectorStep.from_dict(p) for p in path]
+    return resolve_selector_path(window, steps)

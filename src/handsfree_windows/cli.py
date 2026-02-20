@@ -138,6 +138,111 @@ def type(
     console.print("Typed")
 
 
+@app.command("start")
+def start_menu_launch(
+    app_name: str = typer.Option(..., "--app", help="Application name as shown in Start menu search"),
+    delay_ms: int = typer.Option(250, help="Delay after opening Start (ms)"),
+):
+    """Open Start menu, search app_name, and launch it.
+
+    This is intentionally simple (human-style): Win key -> type -> Enter.
+    """
+    from pywinauto.keyboard import send_keys
+
+    send_keys("{VK_LWIN}")
+    # small delay for Start to open
+    import time
+
+    time.sleep(max(0, delay_ms) / 1000.0)
+    send_keys(app_name, with_spaces=True)
+    time.sleep(0.1)
+    send_keys("{ENTER}")
+    console.print(f"Launched (start menu): {app_name}")
+
+
+@app.command("inspect")
+def inspect_under_cursor(
+    json_out: bool = typer.Option(False, "--json", help="Output selector as JSON"),
+):
+    """Inspect the UI element under the mouse cursor and print a robust selector/path."""
+    x, y = uia.cursor_pos()
+    elem = uia.element_from_point(x, y)
+    sel = uia.selector_for_element(elem)
+    if json_out:
+        console.print(json.dumps(sel, ensure_ascii=False, indent=2))
+    else:
+        console.print(f"Cursor: ({x}, {y})")
+        console.print("Selector:")
+        console.print(json.dumps(sel, ensure_ascii=False, indent=2))
+
+
+@app.command("record")
+def record_macro(
+    out: Path = typer.Option(Path("macro.yaml"), help="Output macro YAML"),
+    window_title_regex: Optional[str] = typer.Option(
+        None, help="If set, force focus to this window before each step"
+    ),
+):
+    """Interactive macro recorder (MVP).
+
+    Workflow:
+    - Hover over a UI element
+    - Choose an action (click/type)
+    - The CLI records a selector path for that element.
+
+    Stop by entering 'q'.
+    """
+
+    steps: list[dict] = []
+
+    console.print(
+        "Recording. For each step: hover a UI element, then choose action. Enter 'q' to finish."
+    )
+
+    while True:
+        action = console.input("Action [click/type/sleep/q]: ").strip().lower()
+        if action in {"q", "quit", "exit"}:
+            break
+
+        if action == "sleep":
+            seconds = float(console.input("Seconds: ").strip() or "1")
+            steps.append({"action": "sleep", "args": {"seconds": seconds}})
+            continue
+
+        if action not in {"click", "type"}:
+            console.print("Unknown action. Use click/type/sleep/q.")
+            continue
+
+        # Capture element under cursor
+        x, y = uia.cursor_pos()
+        elem = uia.element_from_point(x, y)
+        sel = uia.selector_for_element(elem)
+
+        args = {
+            "selector": sel,
+            "timeout": 20,
+        }
+
+        if window_title_regex:
+            args["window_title_regex"] = window_title_regex
+
+        if action == "type":
+            text = console.input("Text: ")
+            enter = console.input("Press Enter after? [y/N]: ").strip().lower() in {"y", "yes"}
+            args["text"] = text
+            args["enter"] = enter
+
+        steps.append({"action": action, "args": args})
+        console.print(f"Recorded {action} at cursor ({x},{y})")
+
+    # Write macro
+    import yaml
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(yaml.safe_dump(steps, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    console.print(f"Saved macro: {out}")
+
+
 @app.command("run")
 def run_macro_cmd(path: Path = typer.Argument(..., exists=True)):
     """Run a YAML macro."""

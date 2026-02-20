@@ -19,19 +19,35 @@ List top-level windows:
 hf list-windows
 ```
 
+Launch an app from Start menu (works for almost anything installed):
+```powershell
+hf start --app "Notepad"
+```
+
 Focus a window (by regex title):
 ```powershell
-hf focus --title "Notepad"
+hf focus --title-regex "Notepad"
 ```
 
 List controls for a window:
 ```powershell
-hf list-controls --title "Notepad" --depth 3
+hf list-controls --title-regex "Notepad" --depth 3
 ```
 
 Type into a control (best-match or auto-id):
 ```powershell
-hf type --title "Notepad" --text "Hello" --control "Edit"
+hf type --title-regex "Notepad" --text "Hello" --control "Edit"
+```
+
+Inspect element under cursor (prints a robust selector/path you can paste into a skill):
+```powershell
+hf inspect --json
+```
+
+Record a macro interactively (MVP):
+```powershell
+hf record --out demo.yaml
+hf run demo.yaml
 ```
 
 ## Notes
