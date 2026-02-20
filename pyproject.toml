@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "handsfree-windows"
+version = "0.1.0"
+description = "CLI to control Windows applications using UI Automation (UIA)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Lijin" }]
+dependencies = [
+  "typer>=0.12",
+  "rich>=13.7",
+  "pywinauto>=0.6.8",
+  "comtypes>=1.2.0",
+  "pyyaml>=6.0.1",
+]
+
+[project.scripts]
+hf = "handsfree_windows.cli:app"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+addopts = "-q"

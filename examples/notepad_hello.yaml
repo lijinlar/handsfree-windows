@@ -1,0 +1,16 @@
+# Demo macro: focus Notepad and type text.
+# 1) Open Notepad manually.
+# 2) Run: hf run examples/notepad_hello.yaml
+
+- action: focus
+  args:
+    title_regex: "Notepad"
+
+- action: type
+  args:
+    control: "Edit"
+    text: "Hello from handsfree-windows!"
+
+- action: sleep
+  args:
+    seconds: 0.5
