@@ -16,6 +16,7 @@ dependencies = [
   "pywinauto>=0.6.8",
   "comtypes>=1.2.0",
   "pyyaml>=6.0.1",
+  "pyperclip>=1.9.0",
 ]
 
 [project.scripts]

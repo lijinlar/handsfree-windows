@@ -194,8 +194,41 @@ def open_path(
     send_keys("^l")
     time.sleep(0.05)
 
-    # Type path (with spaces)
-    send_keys(path, with_spaces=True)
+    # Paste path via clipboard (more reliable than typing backslashes)
+    try:
+        import pyperclip  # type: ignore
+
+        pyperclip.copy(path)
+    except Exception:
+        # Fallback: Windows clipboard via ctypes
+        import ctypes
+
+        CF_UNICODETEXT = 13
+        GMEM_MOVEABLE = 0x0002
+
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+
+        if not user32.OpenClipboard(None):
+            raise RuntimeError("Unable to open clipboard")
+        try:
+            user32.EmptyClipboard()
+            data = (path + "\0").encode("utf-16le")
+            h_global = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+            if not h_global:
+                raise RuntimeError("GlobalAlloc failed")
+            lp = kernel32.GlobalLock(h_global)
+            if not lp:
+                raise RuntimeError("GlobalLock failed")
+            try:
+                ctypes.memmove(lp, data, len(data))
+            finally:
+                kernel32.GlobalUnlock(h_global)
+            user32.SetClipboardData(CF_UNICODETEXT, h_global)
+        finally:
+            user32.CloseClipboard()
+
+    send_keys("^v")
     time.sleep(0.05)
     send_keys("{ENTER}")
 
