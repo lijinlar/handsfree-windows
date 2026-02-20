@@ -305,3 +305,38 @@ def resolve_selector(window: BaseWrapper, selector: dict) -> BaseWrapper:
             continue
 
     raise LookupError(f"Failed to resolve selector targets. Last error: {last_err}")
+
+
+def window_rect(window: BaseWrapper) -> tuple[int, int, int, int]:
+    """Return window rectangle (left, top, right, bottom) in screen coords."""
+    r = window.rectangle()
+    return int(r.left), int(r.top), int(r.right), int(r.bottom)
+
+
+def client_point(window: BaseWrapper, x: int, y: int) -> tuple[int, int]:
+    """Convert window-client relative coords to screen coords.
+
+    This uses the top-left of the window rectangle as an approximation. For many apps
+    this is good enough for human-like automation.
+    """
+    l, t, _, _ = window_rect(window)
+    return l + int(x), t + int(y)
+
+
+def click_at(window: BaseWrapper, x: int, y: int, button: str = "left") -> None:
+    """Click at window-relative coordinates."""
+    from pywinauto import mouse
+
+    sx, sy = client_point(window, x, y)
+    mouse.click(button=button, coords=(sx, sy))
+
+
+def drag(window: BaseWrapper, start_x: int, start_y: int, end_x: int, end_y: int, button: str = "left") -> None:
+    """Drag from start->end using window-relative coordinates."""
+    from pywinauto import mouse
+
+    sx, sy = client_point(window, start_x, start_y)
+    ex, ey = client_point(window, end_x, end_y)
+    mouse.press(button=button, coords=(sx, sy))
+    mouse.move(coords=(ex, ey))
+    mouse.release(button=button, coords=(ex, ey))

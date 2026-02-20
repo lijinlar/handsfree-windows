@@ -376,6 +376,36 @@ def record_macro(
     console.print(f"Saved macro: {out}")
 
 
+@app.command("click-at")
+def click_at_cmd(
+    title: Optional[str] = typer.Option(None, help="Exact window title"),
+    title_regex: Optional[str] = typer.Option(None, help="Regex window title"),
+    handle: Optional[int] = typer.Option(None, help="Window handle"),
+    x: int = typer.Option(..., help="X offset (window-relative)"),
+    y: int = typer.Option(..., help="Y offset (window-relative)"),
+):
+    """Click at window-relative coordinates."""
+    w = uia.focus_window(**_window_kwargs(title, title_regex, handle))
+    uia.click_at(w, x=x, y=y)
+    console.print(f"Clicked at ({x},{y})")
+
+
+@app.command("drag")
+def drag_cmd(
+    title: Optional[str] = typer.Option(None, help="Exact window title"),
+    title_regex: Optional[str] = typer.Option(None, help="Regex window title"),
+    handle: Optional[int] = typer.Option(None, help="Window handle"),
+    start_x: int = typer.Option(..., help="Start X (window-relative)"),
+    start_y: int = typer.Option(..., help="Start Y (window-relative)"),
+    end_x: int = typer.Option(..., help="End X (window-relative)"),
+    end_y: int = typer.Option(..., help="End Y (window-relative)"),
+):
+    """Drag mouse from start->end using window-relative coords."""
+    w = uia.focus_window(**_window_kwargs(title, title_regex, handle))
+    uia.drag(w, start_x=start_x, start_y=start_y, end_x=end_x, end_y=end_y)
+    console.print(f"Dragged ({start_x},{start_y}) -> ({end_x},{end_y})")
+
+
 @app.command("run")
 def run_macro_cmd(path: Path = typer.Argument(..., exists=True)):
     """Run a YAML macro."""
