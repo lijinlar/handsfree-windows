@@ -75,6 +75,44 @@ def run_macro(path: str | Path) -> None:
 
             time.sleep(float(args.get("seconds", 1)))
 
+        # Browser steps (Playwright)
+        elif a == "browser-open":
+            from . import browser as browser_mod
+
+            browser_mod.open_url(
+                url=str(args["url"]),
+                browser=str(args.get("browser", "chromium")),
+                headless=bool(args.get("headless", False)),
+            )
+
+        elif a == "browser-navigate":
+            from . import browser as browser_mod
+
+            browser_mod.navigate(url=str(args["url"]))
+
+        elif a == "browser-click":
+            from . import browser as browser_mod
+
+            browser_mod.click(
+                selector=args.get("selector"),
+                text=args.get("text"),
+                exact=bool(args.get("exact", False)),
+            )
+
+        elif a == "browser-type":
+            from . import browser as browser_mod
+
+            browser_mod.type_text(
+                selector=str(args["selector"]),
+                text=str(args.get("text", "")),
+                clear=bool(args.get("clear", True)),
+            )
+
+        elif a == "browser-eval":
+            from . import browser as browser_mod
+
+            browser_mod.evaluate(js=str(args["js"]))
+
         else:
             raise ValueError(f"Unknown action: {a}")
 

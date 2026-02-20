@@ -3,7 +3,7 @@
 CLI to control Windows applications using UI Automation (UIA) (and optionally browser automation).
 
 ## Goals
-- Operate native Windows apps “like a human”: focus windows, find UI controls, click, type, wait.
+- Operate native Windows apps "like a human": focus windows, find UI controls, click, type, wait.
 - Provide a scriptable CLI + a small macro language for repeatable flows.
 
 ## Install (dev)
@@ -100,6 +100,92 @@ hf record --out demo.yaml
 hf run demo.yaml
 ```
 
+## Browser automation (Playwright)
+
+Test web apps and desktop apps with the same CLI. Browser sessions are persistent — login cookies survive between commands.
+
+### Setup (one time)
+```powershell
+python -m playwright install chromium
+# optionally: python -m playwright install firefox webkit
+```
+
+### Quick start
+Open a URL (visible browser window):
+```powershell
+hf browser-open --url "https://github.com"
+```
+
+Open headless:
+```powershell
+hf browser-open --url "https://github.com" --headless
+```
+
+Navigate within the same session:
+```powershell
+hf browser-navigate --url "https://github.com/login"
+```
+
+Snapshot the current page (accessibility tree or text):
+```powershell
+hf browser-snapshot --fmt aria
+hf browser-snapshot --fmt text
+```
+
+Click an element:
+```powershell
+hf browser-click --text "Sign in"
+hf browser-click --selector "button[type=submit]"
+```
+
+Type into an input:
+```powershell
+hf browser-type --selector "#login_field" --text "myuser"
+```
+
+Take a screenshot:
+```powershell
+hf browser-screenshot --out result.png --full-page
+```
+
+Evaluate JavaScript:
+```powershell
+hf browser-eval --js "document.title"
+```
+
+List all links:
+```powershell
+hf browser-links
+```
+
+### Mix desktop + web in one macro (YAML)
+```yaml
+# Open an app from Start menu (UIA)
+- action: start
+  args:
+    app: "My Desktop App"
+
+# Meanwhile open a URL in the browser
+- action: browser-open
+  args:
+    url: "https://app.example.com/login"
+    headless: false
+
+# Click login button
+- action: browser-click
+  args:
+    text: "Sign in"
+
+- action: sleep
+  args:
+    seconds: 2
+
+# Screenshot for verification
+# (not a macro step yet; run manually: hf browser-screenshot)
+```
+
 ## Notes
-- Backend is `pywinauto` (UIA). Some apps require elevated privileges.
-- This project avoids stealth/botting features; it’s for local automation and accessibility-style control.
+- UIA backend: `pywinauto`. Some apps require elevated privileges.
+- Browser backend: `Playwright` (Chromium/Firefox/WebKit).
+- Profiles stored at `~/.handsfree-windows/browser-profiles/<engine>/` — login sessions persist.
+- This project is for local automation/testing only; not for stealth/botting.

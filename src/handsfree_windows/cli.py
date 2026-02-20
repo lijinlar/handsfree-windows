@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from . import browser as browser_mod
 from . import discover, macro, tree, uia
 
 app = typer.Typer(add_completion=False, help="Handsfree Windows: control apps via UI Automation (UIA)")
@@ -508,6 +509,101 @@ def run_macro_cmd(path: Path = typer.Argument(..., exists=True)):
     """Run a YAML macro."""
     macro.run_macro(path)
     console.print(f"Done: {path}")
+
+
+# ---------------------------------------------------------------------------
+# Browser automation commands (Playwright)
+# ---------------------------------------------------------------------------
+
+
+@app.command("browser-open")
+def browser_open_cmd(
+    url: str = typer.Option(..., help="URL to open"),
+    browser: str = typer.Option("chromium", help="Browser engine: chromium|firefox|webkit"),
+    headless: bool = typer.Option(False, help="Run headless (no visible window)"),
+):
+    """Open a URL in a persistent browser session (Playwright).
+
+    The session persists between commands (login cookies are saved).
+    """
+    result = browser_mod.open_url(url, browser=browser, headless=headless)  # type: ignore[arg-type]
+    console.print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@app.command("browser-navigate")
+def browser_navigate_cmd(
+    url: str = typer.Option(..., help="URL to navigate to"),
+):
+    """Navigate the current browser session to a new URL."""
+    result = browser_mod.navigate(url)
+    console.print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@app.command("browser-snapshot")
+def browser_snapshot_cmd(
+    fmt: str = typer.Option("aria", help="Output format: aria|text"),
+):
+    """Snapshot the current page (accessibility tree or text).
+
+    'aria' = structured accessibility tree (roles, names).
+    'text' = raw visible text content.
+    """
+    result = browser_mod.snapshot(fmt=fmt)
+    if fmt == "aria" and isinstance(result.get("content"), dict):
+        console.print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        console.print(f"URL: {result['url']}")
+        console.print(f"Title: {result['title']}")
+        console.print("---")
+        console.print(str(result.get("content", "")))
+
+
+@app.command("browser-click")
+def browser_click_cmd(
+    selector: Optional[str] = typer.Option(None, help="CSS selector"),
+    text: Optional[str] = typer.Option(None, help="Click element by visible text"),
+    exact: bool = typer.Option(False, help="Exact text match"),
+):
+    """Click an element on the current page."""
+    result = browser_mod.click(selector=selector, text=text, exact=exact)
+    console.print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@app.command("browser-type")
+def browser_type_cmd(
+    selector: str = typer.Option(..., help="CSS selector for the input"),
+    text: str = typer.Option(..., help="Text to type"),
+    no_clear: bool = typer.Option(False, "--no-clear", help="Do not clear field before typing"),
+):
+    """Type text into an input element on the current page."""
+    result = browser_mod.type_text(selector=selector, text=text, clear=not no_clear)
+    console.print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@app.command("browser-screenshot")
+def browser_screenshot_cmd(
+    out: str = typer.Option("screenshot.png", help="Output file path (.png)"),
+    full_page: bool = typer.Option(False, help="Capture full scrollable page"),
+):
+    """Take a screenshot of the current page."""
+    result = browser_mod.screenshot(out=out, full_page=full_page)
+    console.print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@app.command("browser-eval")
+def browser_eval_cmd(
+    js: str = typer.Option(..., help="JavaScript expression to evaluate"),
+):
+    """Evaluate JavaScript on the current page and print the result."""
+    result = browser_mod.evaluate(js)
+    console.print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@app.command("browser-links")
+def browser_links_cmd():
+    """List all links on the current page."""
+    result = browser_mod.get_links()
+    console.print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
