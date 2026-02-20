@@ -84,10 +84,10 @@ def _resolve_target(current_window, args: dict[str, Any]):
 
     timeout = int(args.get("timeout", 20))
 
-    # Recorded selector mode: args.selector = { window: {...}, path: [...] }
+    # Recorded selector mode: args.selector = { window: {...}, targets: [...] }
     selector = args.get("selector")
     if selector:
-        win_title_regex = args.get("window_title_regex")
+        win_title_regex = args.get("window_title_regex") or (selector.get("window") or {}).get("title_regex")
         if win_title_regex:
             w = uia.focus_window(title_regex=win_title_regex)
         else:
@@ -100,13 +100,27 @@ def _resolve_target(current_window, args: dict[str, Any]):
                     raise RuntimeError("Selector step needs a window. Provide window_title_regex or add a focus step.")
                 w = current_window
 
-        # Resolve the path
-        path = selector.get("path")
-        if not isinstance(path, list):
-            raise ValueError("selector.path must be a list")
-
-        ctrl = uia.resolve_selector(w, path)
+        ctrl = uia.resolve_selector(w, selector)
         return w, ctrl
+
+    # Multi-candidate recorded selectors (preferred)
+    selector_candidates = args.get("selector_candidates")
+    if selector_candidates:
+        if not isinstance(selector_candidates, list):
+            raise ValueError("selector_candidates must be a list")
+
+        last_err: Exception | None = None
+        for sel in selector_candidates:
+            try:
+                if not isinstance(sel, dict):
+                    continue
+                w, ctrl = _resolve_target(current_window, {"selector": sel, **args})
+                return w, ctrl
+            except Exception as e:
+                last_err = e
+                continue
+
+        raise LookupError(f"Failed to resolve selector_candidates. Last error: {last_err}")
 
     # Classic (manual) mode
     if current_window is None:

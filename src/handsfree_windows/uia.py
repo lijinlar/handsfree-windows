@@ -8,7 +8,12 @@ from pywinauto import Desktop
 from pywinauto.base_wrapper import BaseWrapper
 from pywinauto.findwindows import ElementNotFoundError
 
-from .selectors import resolve_selector_path, selector_path_from_element, SelectorStep
+from .selectors import (
+    SelectorStep,
+    candidate_targets_for_element,
+    resolve_selector_path,
+    selector_path_from_element,
+)
 
 
 @dataclass
@@ -228,24 +233,75 @@ def top_level_window_for(elem: BaseWrapper) -> BaseWrapper:
 
 
 def selector_for_element(elem: BaseWrapper) -> dict:
-    """Build a selector payload for an element: window spec + control path."""
+    """Build a selector payload for an element.
+
+    Returns an app-agnostic selector with multiple candidate targeting strategies.
+
+    Schema (v2):
+    {
+      "window": {"title": "...", "title_regex": "..."},
+      "targets": [
+        {"auto_id": "...", "control_type": "Button"},
+        {"name": "OK", "control_type": "Button"},
+        {"path": [ ... SelectorStep dicts ... ]}
+      ]
+    }
+
+    We include window.title as observed; for skills, prefer using window.title_regex.
+    """
+
     win = top_level_window_for(elem)
     try:
         win_title = win.window_text()
     except Exception:
         win_title = ""
 
-    path = selector_path_from_element(elem, win)
+    targets = candidate_targets_for_element(elem, win)
+
     return {
         "window": {
             "title": win_title,
             "handle": int(win.handle),
             "pid": int(getattr(win, "process_id", lambda: -1)()),
         },
-        "path": [s.to_dict() for s in path],
+        "targets": targets,
     }
 
 
-def resolve_selector(window: BaseWrapper, path: list[dict]) -> BaseWrapper:
-    steps = [SelectorStep.from_dict(p) for p in path]
-    return resolve_selector_path(window, steps)
+def resolve_selector(window: BaseWrapper, selector: dict) -> BaseWrapper:
+    """Resolve a v2 selector against a window.
+
+    Tries selector["targets"] in order. Each target can be:
+    - {auto_id, control_type}
+    - {name, control_type}
+    - {path: [...steps...]}
+    """
+
+    targets = selector.get("targets") or []
+    if not isinstance(targets, list) or not targets:
+        raise ValueError("selector.targets must be a non-empty list")
+
+    last_err: Exception | None = None
+
+    for t in targets:
+        try:
+            if not isinstance(t, dict):
+                continue
+
+            if t.get("auto_id") and t.get("control_type"):
+                return window.child_window(
+                    auto_id=t["auto_id"], control_type=t["control_type"]
+                ).wrapper_object()
+
+            if t.get("name") and t.get("control_type"):
+                return window.child_window(title=t["name"], control_type=t["control_type"]).wrapper_object()
+
+            if t.get("path"):
+                steps = [SelectorStep.from_dict(p) for p in t["path"]]
+                return resolve_selector_path(window, steps)
+
+        except Exception as e:
+            last_err = e
+            continue
+
+    raise LookupError(f"Failed to resolve selector targets. Last error: {last_err}")

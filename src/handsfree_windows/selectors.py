@@ -44,14 +44,11 @@ class SelectorStep:
 def selector_path_from_element(elem: BaseWrapper, window_root: BaseWrapper) -> list[SelectorStep]:
     """Return a best-effort stable path from window_root -> elem.
 
-    The path is meant to be robust-ish across sessions, but it is not guaranteed.
     Prefer auto_id when available; otherwise fall back to name/control_type and sibling index.
     """
 
-    # Walk up via element_info.parent (UIA tree), then back down.
     chain: list[BaseWrapper] = []
     cur = elem
-    # Guard against weird trees
     for _ in range(256):
         chain.append(cur)
         if int(cur.handle) == int(window_root.handle):
@@ -75,11 +72,9 @@ def selector_path_from_element(elem: BaseWrapper, window_root: BaseWrapper) -> l
         info = node.element_info
         parent = chain[i - 1]
 
-        # Determine sibling index among similar-ish children to disambiguate
         idx = None
         try:
             siblings = parent.children()
-            # Try exact handle match in siblings
             for j, sib in enumerate(siblings):
                 if int(sib.handle) == int(node.handle):
                     idx = j
@@ -91,13 +86,48 @@ def selector_path_from_element(elem: BaseWrapper, window_root: BaseWrapper) -> l
             SelectorStep(
                 control_type=str(info.control_type) if info.control_type else None,
                 name=str(info.name) if info.name else None,
-                auto_id=str(info.automation_id) if getattr(info, "automation_id", None) else None,
-                class_name=str(info.class_name) if getattr(info, "class_name", None) else None,
+                auto_id=str(getattr(info, "automation_id", "")) or None,
+                class_name=str(getattr(info, "class_name", "")) or None,
                 index=idx,
             )
         )
 
     return path
+
+
+def candidate_targets_for_element(elem: BaseWrapper, window_root: BaseWrapper) -> list[dict[str, Any]]:
+    """Return ranked candidate target selectors for an element.
+
+    Highest stability first:
+    1) auto_id + control_type
+    2) name + control_type
+    3) full path steps (fallback)
+
+    No app-specific logic is used.
+    """
+
+    info = elem.element_info
+    control_type = str(info.control_type) if info.control_type else None
+    name = str(info.name) if info.name else None
+    auto_id = str(getattr(info, "automation_id", "")) or None
+    class_name = str(getattr(info, "class_name", "")) or None
+
+    out: list[dict[str, Any]] = []
+    if auto_id and control_type:
+        out.append({"auto_id": auto_id, "control_type": control_type})
+    if name and control_type:
+        out.append({"name": name, "control_type": control_type})
+
+    # Always include path as last resort
+    path = selector_path_from_element(elem, window_root)
+    out.append({"path": [s.to_dict() for s in path]})
+
+    # Add class_name as extra hint (non-binding) when present
+    for t in out:
+        if class_name and "class_name" not in t:
+            t["class_name"] = class_name
+
+    return out
 
 
 def _match(child: BaseWrapper, step: SelectorStep) -> bool:
@@ -116,19 +146,18 @@ def _match(child: BaseWrapper, step: SelectorStep) -> bool:
 def resolve_selector_path(window_root: BaseWrapper, path: Iterable[SelectorStep]) -> BaseWrapper:
     cur = window_root
     for step in path:
-        # First try direct pywinauto selector when possible (fast)
         try:
             if step.auto_id and step.control_type:
-                cur = cur.child_window(auto_id=step.auto_id, control_type=step.control_type).wrapper_object()
+                cur = (
+                    cur.child_window(auto_id=step.auto_id, control_type=step.control_type).wrapper_object()
+                )
                 continue
             if step.name and step.control_type:
                 cur = cur.child_window(title=step.name, control_type=step.control_type).wrapper_object()
                 continue
         except Exception:
-            # Fall back to manual scan
             pass
 
-        children = []
         try:
             children = cur.children()
         except Exception:
@@ -139,10 +168,7 @@ def resolve_selector_path(window_root: BaseWrapper, path: Iterable[SelectorStep]
             raise LookupError(f"No child matched selector step: {step}")
 
         if step.index is not None:
-            try:
-                cur = matches[0 if len(matches) == 1 else min(step.index, len(matches) - 1)]
-            except Exception:
-                cur = matches[0]
+            cur = matches[min(step.index, len(matches) - 1)]
         else:
             cur = matches[0]
 

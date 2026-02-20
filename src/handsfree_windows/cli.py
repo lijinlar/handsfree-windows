@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import macro, uia
+from . import macro, tree, uia
 
 app = typer.Typer(add_completion=False, help="Handsfree Windows: control apps via UI Automation (UIA)")
 console = Console()
@@ -52,6 +52,20 @@ def focus(
     """Focus a window."""
     w = uia.focus_window(**_window_kwargs(title, title_regex, handle))
     console.print(f"Focused: {w.window_text()!r}")
+
+
+@app.command("tree")
+def export_tree(
+    title: Optional[str] = typer.Option(None, help="Exact window title"),
+    title_regex: Optional[str] = typer.Option(None, help="Regex window title"),
+    handle: Optional[int] = typer.Option(None, help="Window handle"),
+    depth: int = typer.Option(3, help="Tree depth to traverse"),
+    max_nodes: int = typer.Option(5000, help="Max nodes to export"),
+):
+    """Export the UI Automation tree for a window (JSON)."""
+    w = uia.focus_window(**_window_kwargs(title, title_regex, handle))
+    tnode = tree.build_tree(w, depth=depth, max_nodes=max_nodes)
+    console.print(json.dumps(tnode.to_dict(), ensure_ascii=False, indent=2))
 
 
 @app.command("list-controls")
@@ -164,7 +178,7 @@ def start_menu_launch(
 def inspect_under_cursor(
     json_out: bool = typer.Option(False, "--json", help="Output selector as JSON"),
 ):
-    """Inspect the UI element under the mouse cursor and print a robust selector/path."""
+    """Inspect the UI element under the mouse cursor and print a robust selector."""
     x, y = uia.cursor_pos()
     elem = uia.element_from_point(x, y)
     sel = uia.selector_for_element(elem)
@@ -172,8 +186,47 @@ def inspect_under_cursor(
         console.print(json.dumps(sel, ensure_ascii=False, indent=2))
     else:
         console.print(f"Cursor: ({x}, {y})")
-        console.print("Selector:")
         console.print(json.dumps(sel, ensure_ascii=False, indent=2))
+
+
+@app.command("resolve")
+def resolve_selector_cmd(
+    selector_json: Optional[str] = typer.Option(None, help="Selector JSON string"),
+    selector_file: Optional[Path] = typer.Option(None, exists=True, help="Path to selector JSON"),
+    title_regex: Optional[str] = typer.Option(None, help="Override window title regex"),
+):
+    """Resolve a selector against the current UI and print what it matched."""
+    if not selector_json and not selector_file:
+        raise typer.BadParameter("Provide --selector-json or --selector-file")
+
+    if selector_file:
+        data = json.loads(selector_file.read_text(encoding="utf-8"))
+    else:
+        data = json.loads(selector_json or "{}")
+
+    if title_regex:
+        data.setdefault("window", {})["title_regex"] = title_regex
+
+    wspec = data.get("window") or {}
+    if wspec.get("title_regex"):
+        w = uia.focus_window(title_regex=wspec["title_regex"])
+    elif wspec.get("title"):
+        w = uia.focus_window(title=wspec["title"])
+    else:
+        raise typer.BadParameter("Selector must include window.title or window.title_regex")
+
+    ctrl = uia.resolve_selector(w, data)
+    info = ctrl.element_info
+    out = {
+        "matched": {
+            "name": str(info.name or ""),
+            "control_type": str(info.control_type or ""),
+            "auto_id": str(getattr(info, "automation_id", "") or ""),
+            "class_name": str(getattr(info, "class_name", "") or ""),
+            "rectangle": str(info.rectangle),
+        }
+    }
+    console.print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
 @app.command("record")
@@ -183,12 +236,12 @@ def record_macro(
         None, help="If set, force focus to this window before each step"
     ),
 ):
-    """Interactive macro recorder (MVP).
+    """Interactive macro recorder (generic).
 
     Workflow:
     - Hover over a UI element
     - Choose an action (click/type)
-    - The CLI records a selector path for that element.
+    - The CLI records multiple selector candidates for that element.
 
     Stop by entering 'q'.
     """
@@ -213,17 +266,22 @@ def record_macro(
             console.print("Unknown action. Use click/type/sleep/q.")
             continue
 
-        # Capture element under cursor
         x, y = uia.cursor_pos()
         elem = uia.element_from_point(x, y)
         sel = uia.selector_for_element(elem)
 
+        # Store the same selector multiple times is pointless; but we allow expansion later.
+        selector_candidates = [sel]
+
         args = {
-            "selector": sel,
+            "selector_candidates": selector_candidates,
             "timeout": 20,
         }
 
         if window_title_regex:
+            # Encourage regex matching for skills
+            for s in selector_candidates:
+                s.setdefault("window", {})["title_regex"] = window_title_regex
             args["window_title_regex"] = window_title_regex
 
         if action == "type":
@@ -235,7 +293,6 @@ def record_macro(
         steps.append({"action": action, "args": args})
         console.print(f"Recorded {action} at cursor ({x},{y})")
 
-    # Write macro
     import yaml
 
     out.parent.mkdir(parents=True, exist_ok=True)
