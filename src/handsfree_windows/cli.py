@@ -164,7 +164,6 @@ def start_menu_launch(
     from pywinauto.keyboard import send_keys
 
     send_keys("{VK_LWIN}")
-    # small delay for Start to open
     import time
 
     time.sleep(max(0, delay_ms) / 1000.0)
@@ -172,6 +171,35 @@ def start_menu_launch(
     time.sleep(0.1)
     send_keys("{ENTER}")
     console.print(f"Launched (start menu): {app_name}")
+
+
+@app.command("open-path")
+def open_path(
+    path: str = typer.Option(..., help="Filesystem path to open in Explorer"),
+    use_win_e: bool = typer.Option(True, help="Open Explorer via Win+E first"),
+    delay_ms: int = typer.Option(400, help="Delay after opening Explorer (ms)"),
+):
+    """Open File Explorer and navigate to a folder.
+
+    Generic method: Win+E -> Ctrl+L (address bar) -> paste path -> Enter.
+    """
+    from pywinauto.keyboard import send_keys
+    import time
+
+    if use_win_e:
+        send_keys("{VK_LWIN down}e{VK_LWIN up}")
+        time.sleep(max(0, delay_ms) / 1000.0)
+
+    # Focus address bar
+    send_keys("^l")
+    time.sleep(0.05)
+
+    # Type path (with spaces)
+    send_keys(path, with_spaces=True)
+    time.sleep(0.05)
+    send_keys("{ENTER}")
+
+    console.print(f"Opened path in Explorer: {path}")
 
 
 @app.command("inspect")
