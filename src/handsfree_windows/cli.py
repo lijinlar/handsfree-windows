@@ -176,13 +176,25 @@ def start_menu_launch(
 @app.command("open-path")
 def open_path(
     path: str = typer.Option(..., help="Filesystem path to open in Explorer"),
-    use_win_e: bool = typer.Option(True, help="Open Explorer via Win+E first"),
-    delay_ms: int = typer.Option(400, help="Delay after opening Explorer (ms)"),
+    direct: bool = typer.Option(True, help="Use explorer.exe <path> (most reliable)"),
+    use_win_e: bool = typer.Option(True, help="If not direct: open Explorer via Win+E first"),
+    delay_ms: int = typer.Option(600, help="If not direct: delay after opening Explorer (ms)"),
 ):
     """Open File Explorer and navigate to a folder.
 
-    Generic method: Win+E -> Ctrl+L (address bar) -> paste path -> Enter.
+    Two generic strategies:
+    - direct (default): run `explorer.exe <path>`
+    - human-style: Win+E -> Ctrl+L -> paste path -> Enter
     """
+
+    if direct:
+        import subprocess
+
+        # explorer.exe is the canonical way to open a folder reliably.
+        subprocess.Popen(["explorer.exe", path])
+        console.print(f"Opened path in Explorer (direct): {path}")
+        return
+
     from pywinauto.keyboard import send_keys
     import time
 
@@ -190,17 +202,20 @@ def open_path(
         send_keys("{VK_LWIN down}e{VK_LWIN up}")
         time.sleep(max(0, delay_ms) / 1000.0)
 
-    # Focus address bar
-    send_keys("^l")
+    # Ensure we're not stuck in the breadcrumbs/search UI
+    send_keys("{ESC}")
     time.sleep(0.05)
 
-    # Paste path via clipboard (more reliable than typing backslashes)
+    # Focus address bar
+    send_keys("^l")
+    time.sleep(0.1)
+
+    # Paste path via clipboard
     try:
         import pyperclip  # type: ignore
 
         pyperclip.copy(path)
     except Exception:
-        # Fallback: Windows clipboard via ctypes
         import ctypes
 
         CF_UNICODETEXT = 13
@@ -229,10 +244,10 @@ def open_path(
             user32.CloseClipboard()
 
     send_keys("^v")
-    time.sleep(0.05)
+    time.sleep(0.1)
     send_keys("{ENTER}")
 
-    console.print(f"Opened path in Explorer: {path}")
+    console.print(f"Opened path in Explorer (human): {path}")
 
 
 @app.command("inspect")
