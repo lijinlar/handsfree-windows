@@ -368,17 +368,39 @@ def drag_screen(
     steps: int = 25,
     pre_hold_ms: int = 120,
     post_hold_ms: int = 50,
+    backend: str = "pywinauto",
 ) -> None:
     """Drag using absolute screen coordinates.
 
     Some apps (notably Paint / ink surfaces) need a small dwell time after mouse down
     before movement is recognized as a drag.
     """
-    from pywinauto import mouse
-    import time
-
     sx, sy = int(start_x), int(start_y)
     ex, ey = int(end_x), int(end_y)
+
+    backend = (backend or "pywinauto").lower()
+
+    if backend == "sendinput":
+        from . import wininput
+
+        if button != "left":
+            raise ValueError("sendinput backend currently supports left button only")
+
+        wininput.drag_left(
+            start_x=sx,
+            start_y=sy,
+            end_x=ex,
+            end_y=ey,
+            duration_ms=duration_ms,
+            steps=steps,
+            pre_hold_ms=pre_hold_ms,
+            post_hold_ms=post_hold_ms,
+        )
+        return
+
+    # Default: pywinauto mouse helpers
+    from pywinauto import mouse
+    import time
 
     # Try builtin drag first
     if hasattr(mouse, "drag"):
