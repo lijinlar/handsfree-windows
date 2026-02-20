@@ -14,37 +14,87 @@ pip install -e .
 ```
 
 ## Quick start
-List top-level windows:
+
+### Install (dev)
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -e .
+```
+
+### List windows
 ```powershell
 hf list-windows
+hf list-windows --json
+hf list-windows --title-regex "Outlook"
 ```
 
-Launch an app from Start menu (works for almost anything installed):
+### Launch apps
+Launch from Start menu (generic):
 ```powershell
-hf start --app "Notepad"
+hf start --app "Outlook"
+hf start --app "Paint"
+hf start --app "LinkedIn"
 ```
 
-Focus a window (by regex title):
+Open a folder in File Explorer (most reliable = direct explorer.exe):
 ```powershell
-hf focus --title-regex "Notepad"
+hf open-path --path "C:\\Users\\lijin\\.openclaw\\workspace"
+# Human-style fallback:
+# hf open-path --path "C:\\...\\workspace" --direct false
 ```
 
-List controls for a window:
+### Focus a window
 ```powershell
-hf list-controls --title-regex "Notepad" --depth 3
+hf focus --title "LinkedIn"
+# or
+hf focus --title-regex "Untitled - Paint"
 ```
 
-Type into a control (best-match or auto-id):
+### Discover UI (no guessing)
+Export the UI Automation tree (JSON):
 ```powershell
-hf type --title-regex "Notepad" --text "Hello" --control "Edit"
+hf tree --title-regex "Untitled - Paint" --depth 10 --max-nodes 30000
 ```
 
-Inspect element under cursor (prints a robust selector/path you can paste into a skill):
+List controls in a table (quick glance):
+```powershell
+hf list-controls --title-regex "Untitled - Paint" --depth 4
+```
+
+Inspect element under cursor (prints robust selector JSON):
 ```powershell
 hf inspect --json
 ```
 
-Record a macro interactively (MVP):
+Resolve a selector JSON against the current UI (debugging):
+```powershell
+hf resolve --selector-file selector.json
+# or override the window matcher:
+hf resolve --selector-file selector.json --title-regex "Untitled - Paint"
+```
+
+### Click and type (by UIA properties)
+```powershell
+hf click --title "LinkedIn" --name "Sign in with browser" --control-type "Hyperlink"
+
+hf type --title-regex "Notepad" --control "Edit" --text "Hello from handsfree-windows!"
+```
+
+### Mouse primitives
+Absolute screen drag:
+```powershell
+hf drag-screen --start-x 350 --start-y 320 --end-x 950 --end-y 620 --backend sendinput
+```
+
+Drag inside the detected canvas/content area (avoids out-of-canvas drags):
+```powershell
+hf drag-canvas --title-regex "Untitled - Paint" --backend sendinput
+# tweak shape size/position with fractions:
+# hf drag-canvas --title-regex "Untitled - Paint" --x1 0.30 --y1 0.30 --x2 0.55 --y2 0.50
+```
+
+### Record + replay (generic macros)
 ```powershell
 hf record --out demo.yaml
 hf run demo.yaml
