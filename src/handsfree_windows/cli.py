@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import browser as browser_mod
-from . import discover, macro, tree, uia
+from . import discover, macro, recorder, tree, uia
 
 app = typer.Typer(add_completion=False, help="Handsfree Windows: control apps via UI Automation (UIA)")
 console = Console()
@@ -310,18 +310,33 @@ def resolve_selector_cmd(
 def record_macro(
     out: Path = typer.Option(Path("macro.yaml"), help="Output macro YAML"),
     window_title_regex: Optional[str] = typer.Option(
-        None, help="If set, force focus to this window before each step"
+        None, help="If set, force focus to this window before each step (interactive mode only)"
+    ),
+    passive: bool = typer.Option(
+        False, "--passive", help="Passive mode: record clicks and keystrokes automatically. Press F9 to stop."
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Print each recorded step to stdout (passive mode only)"
     ),
 ):
-    """Interactive macro recorder (generic).
+    """Macro recorder -- interactive (default) or passive (--passive).
 
-    Workflow:
+    Interactive mode:
     - Hover over a UI element
     - Choose an action (click/type)
     - The CLI records multiple selector candidates for that element.
+    - Stop by entering 'q'.
 
-    Stop by entering 'q'.
+    Passive mode (--passive):
+    - Record starts immediately -- use the app normally.
+    - Left-click: captures UIA element as a click step.
+    - Typing: buffered and saved as type steps.
+    - Enter key: flushes typing with enter=true.
+    - F9: stops recording and saves the macro.
     """
+    if passive:
+        recorder.passive_record(out=out, verbose=verbose)
+        return
 
     steps: list[dict] = []
 
