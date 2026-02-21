@@ -44,6 +44,7 @@ def passive_record(out: Path, verbose: bool = False) -> None:
         "type_buffer": [],          # accumulated chars not yet flushed
         "last_selector": None,      # selector from the most recent click
         "last_type_time": 0.0,      # monotonic timestamp of last keystroke
+        "last_step_time": 0.0,      # monotonic timestamp of the last recorded step
     }
 
     _stop = threading.Event()
@@ -51,6 +52,14 @@ def passive_record(out: Path, verbose: bool = False) -> None:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _take_delay_ms() -> int:
+        """Return ms since the last recorded step and reset the timer (must be called with _lock held)."""
+        now = time.monotonic()
+        last = _state["last_step_time"]
+        delay = int((now - last) * 1000) if last > 0 else 0
+        _state["last_step_time"] = now
+        return delay
 
     def _flush_type(enter: bool = False) -> None:
         """Flush the type buffer as a `type` step (must be called with _lock held)."""
@@ -67,6 +76,7 @@ def passive_record(out: Path, verbose: bool = False) -> None:
                     "text": text,
                     "enter": enter,
                     "timeout": 20,
+                    "delay_before": _take_delay_ms(),
                 },
             }
             steps.append(step)
@@ -112,6 +122,7 @@ def passive_record(out: Path, verbose: bool = False) -> None:
                 "x": x,
                 "y": y,
                 "timeout": 20,
+                "delay_before": _take_delay_ms(),
             }
             if sel is not None:
                 step_args["selector_candidates"] = [sel]

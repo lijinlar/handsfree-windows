@@ -35,9 +35,16 @@ def run_macro(path: str | Path) -> None:
     steps = load_macro(path)
     current_window = None
 
+    _MAX_DELAY_MS = 5000  # cap replay delays at 5 s (avoids freezing on long recording pauses)
+
     for step in steps:
         a = step.action
         args = step.args
+
+        # Honour recorded inter-step timing (capped at _MAX_DELAY_MS)
+        delay_before = args.get("delay_before", 0)
+        if delay_before and delay_before > 0:
+            time.sleep(min(int(delay_before), _MAX_DELAY_MS) / 1000.0)
 
         if a == "focus":
             current_window = uia.focus_window(
