@@ -278,11 +278,16 @@ def selector_for_element(elem: BaseWrapper) -> dict:
 
     targets = candidate_targets_for_element(elem, win)
 
+    handle = win.handle
+    try:
+        pid = int(getattr(win, "process_id", lambda: None)())
+    except (TypeError, ValueError):
+        pid = None
     return {
         "window": {
             "title": win_title,
-            "handle": int(win.handle),
-            "pid": int(getattr(win, "process_id", lambda: -1)()),
+            "handle": int(handle) if handle is not None else None,
+            "pid": pid,
         },
         "targets": targets,
     }

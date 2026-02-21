@@ -98,33 +98,34 @@ def passive_record(out: Path, verbose: bool = False) -> None:
         _flush_safe()
 
         # Resolve UIA element at click position
+        sel = None
         try:
             elem = uia.element_from_point(x, y)
             sel = uia.selector_for_element(elem)
         except Exception as exc:
             if verbose:
-                print(f"  [click] UIA lookup failed at ({x},{y}): {exc}")
-            return
+                print(f"  [click] UIA lookup failed at ({x},{y}) — recording coords only: {exc}")
 
         with _lock:
-            _state["last_selector"] = sel
-            steps.append(
-                {
-                    "action": "click",
-                    "args": {
-                        "selector_candidates": [sel],
-                        "x": x,   # fallback screen coords for WebView2/Electron apps
-                        "y": y,
-                        "timeout": 20,
-                    },
-                }
-            )
+            _state["last_selector"] = sel  # may be None for system UI
+            step_args: dict = {
+                "x": x,
+                "y": y,
+                "timeout": 20,
+            }
+            if sel is not None:
+                step_args["selector_candidates"] = [sel]
+
+            steps.append({"action": "click", "args": step_args})
 
         if verbose:
-            win_title = (sel.get("window") or {}).get("title", "")
-            targets = sel.get("targets") or []
-            ctrl_name = (targets[0] if targets else {}).get("name", "")
-            print(f"  [click] window={repr(win_title)}  ctrl={repr(ctrl_name)}  ({x},{y})")
+            if sel is not None:
+                win_title = (sel.get("window") or {}).get("title", "")
+                targets = sel.get("targets") or []
+                ctrl_name = (targets[0] if targets else {}).get("name", "")
+                print(f"  [click] window={repr(win_title)}  ctrl={repr(ctrl_name)}  ({x},{y})")
+            else:
+                print(f"  [click] coords-only ({x},{y})")
 
     # ------------------------------------------------------------------
     # Keyboard listener

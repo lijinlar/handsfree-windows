@@ -62,23 +62,34 @@ def run_macro(path: str | Path) -> None:
         elif a == "click":
             fallback_x = args.get("x")
             fallback_y = args.get("y")
-            try:
-                _w, ctrl = _resolve_target(current_window, args)
-                uia.click_control(ctrl)
-                current_window = _w
-            except Exception as uia_err:
-                if fallback_x is not None and fallback_y is not None:
-                    # UIA resolve failed — fall back to recorded screen coordinates
-                    # (common for WebView2/Electron apps where inner elements aren't exposed)
-                    print(f"  [click] UIA resolve failed ({uia_err}), falling back to screen coords ({fallback_x},{fallback_y})")
-                    fx, fy = int(fallback_x), int(fallback_y)
-                    wininput.move_to(fx, fy)
-                    time.sleep(0.05)
-                    wininput.left_down(fx, fy)
-                    time.sleep(0.05)
-                    wininput.left_up(fx, fy)
-                else:
-                    raise
+            has_selectors = bool(args.get("selector_candidates") or args.get("selector"))
+
+            if not has_selectors and fallback_x is not None and fallback_y is not None:
+                # Coord-only step (recorded from system UI / Start menu where UIA lookup failed)
+                fx, fy = int(fallback_x), int(fallback_y)
+                wininput.move_to(fx, fy)
+                time.sleep(0.05)
+                wininput.left_down(fx, fy)
+                time.sleep(0.05)
+                wininput.left_up(fx, fy)
+            else:
+                try:
+                    _w, ctrl = _resolve_target(current_window, args)
+                    uia.click_control(ctrl)
+                    current_window = _w
+                except Exception as uia_err:
+                    if fallback_x is not None and fallback_y is not None:
+                        # UIA resolve failed — fall back to recorded screen coordinates
+                        # (common for WebView2/Electron apps where inner elements aren't exposed)
+                        print(f"  [click] UIA resolve failed, falling back to screen coords ({fallback_x},{fallback_y})")
+                        fx, fy = int(fallback_x), int(fallback_y)
+                        wininput.move_to(fx, fy)
+                        time.sleep(0.05)
+                        wininput.left_down(fx, fy)
+                        time.sleep(0.05)
+                        wininput.left_up(fx, fy)
+                    else:
+                        raise
 
         elif a == "type":
             _w, ctrl = _resolve_target(current_window, args)
