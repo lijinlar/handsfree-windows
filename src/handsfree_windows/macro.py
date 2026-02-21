@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from . import uia
+from . import uia, wininput
 
 
 @dataclass
@@ -53,17 +54,31 @@ def run_macro(path: str | Path) -> None:
             delay_ms = int(args.get("delay_ms", 250))
 
             send_keys("{VK_LWIN}")
-            import time
-
             time.sleep(max(0, delay_ms) / 1000.0)
             send_keys(app_name, with_spaces=True)
             time.sleep(0.1)
             send_keys("{ENTER}")
 
         elif a == "click":
-            _w, ctrl = _resolve_target(current_window, args)
-            uia.click_control(ctrl)
-            current_window = _w
+            fallback_x = args.get("x")
+            fallback_y = args.get("y")
+            try:
+                _w, ctrl = _resolve_target(current_window, args)
+                uia.click_control(ctrl)
+                current_window = _w
+            except Exception as uia_err:
+                if fallback_x is not None and fallback_y is not None:
+                    # UIA resolve failed — fall back to recorded screen coordinates
+                    # (common for WebView2/Electron apps where inner elements aren't exposed)
+                    print(f"  [click] UIA resolve failed ({uia_err}), falling back to screen coords ({fallback_x},{fallback_y})")
+                    fx, fy = int(fallback_x), int(fallback_y)
+                    wininput.move_to(fx, fy)
+                    time.sleep(0.05)
+                    wininput.left_down(fx, fy)
+                    time.sleep(0.05)
+                    wininput.left_up(fx, fy)
+                else:
+                    raise
 
         elif a == "type":
             _w, ctrl = _resolve_target(current_window, args)
@@ -71,8 +86,6 @@ def run_macro(path: str | Path) -> None:
             current_window = _w
 
         elif a == "sleep":
-            import time
-
             time.sleep(float(args.get("seconds", 1)))
 
         # Browser steps (Playwright)
@@ -125,14 +138,23 @@ def _resolve_target(current_window, args: dict[str, Any]):
     # Recorded selector mode: args.selector = { window: {...}, targets: [...] }
     selector = args.get("selector")
     if selector:
-        win_title_regex = args.get("window_title_regex") or (selector.get("window") or {}).get("title_regex")
+        win_spec = selector.get("window") or {}
+        win_title_regex = args.get("window_title_regex") or win_spec.get("title_regex")
         if win_title_regex:
             w = uia.focus_window(title_regex=win_title_regex)
         else:
-            # Best-effort: focus by exact title if present
-            win_title = (selector.get("window") or {}).get("title")
+            win_title = win_spec.get("title")
+            win_handle = win_spec.get("handle")
             if win_title:
                 w = uia.focus_window(title=win_title)
+            elif win_handle:
+                # Passive recorder captures handle — use it as fallback
+                try:
+                    w = uia.focus_window(handle=int(win_handle))
+                except Exception:
+                    if current_window is None:
+                        raise RuntimeError("Selector step needs a window. Provide window_title_regex or add a focus step.")
+                    w = current_window
             else:
                 if current_window is None:
                     raise RuntimeError("Selector step needs a window. Provide window_title_regex or add a focus step.")

@@ -113,6 +113,8 @@ def passive_record(out: Path, verbose: bool = False) -> None:
                     "action": "click",
                     "args": {
                         "selector_candidates": [sel],
+                        "x": x,   # fallback screen coords for WebView2/Electron apps
+                        "y": y,
                         "timeout": 20,
                     },
                 }
