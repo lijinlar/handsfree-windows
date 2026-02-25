@@ -13,6 +13,15 @@ python -m venv .venv
 pip install -e .
 ```
 
+## Agent quick-reference
+
+Get a full command reference (grouped by category):
+```powershell
+hf help
+hf help --json          # machine-readable JSON (great for agents)
+hf help --category drag # filter to a specific group
+```
+
 ## Quick start
 
 ### Install (dev)

@@ -621,5 +621,281 @@ def browser_links_cmd():
     console.print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+_HELP_REFERENCE: list[dict] = [
+    {
+        "category": "Window Management",
+        "commands": [
+            {
+                "name": "list-windows",
+                "desc": "List all top-level windows.",
+                "options": ["--title-regex REGEX", "--json"],
+                "example": 'hf list-windows --title-regex "Notepad"',
+            },
+            {
+                "name": "focus",
+                "desc": "Bring a window to the foreground.",
+                "options": ["--title TEXT", "--title-regex REGEX", "--handle INT"],
+                "example": 'hf focus --title-regex "Notepad"',
+            },
+            {
+                "name": "start",
+                "desc": "Launch an app via the Windows Start menu.",
+                "options": ["--app TEXT (required)"],
+                "example": 'hf start --app "Notepad"',
+            },
+            {
+                "name": "open-path",
+                "desc": "Open a folder in File Explorer.",
+                "options": ["--path TEXT (required)", "--direct / --no-direct"],
+                "example": r'hf open-path --path "C:\Users\lijin\Downloads"',
+            },
+        ],
+    },
+    {
+        "category": "UI Discovery",
+        "commands": [
+            {
+                "name": "tree",
+                "desc": "Dump the UIA element tree for a window (JSON). Use before clicking anything.",
+                "options": [
+                    "--title / --title-regex / --handle",
+                    "--depth INT (default 3)",
+                    "--max-nodes INT (default 5000)",
+                ],
+                "example": 'hf tree --title-regex "Paint" --depth 6',
+            },
+            {
+                "name": "list-controls",
+                "desc": "Print a quick table of all controls in a window.",
+                "options": ["--title / --title-regex / --handle", "--depth INT", "--limit INT"],
+                "example": 'hf list-controls --title-regex "Paint"',
+            },
+            {
+                "name": "inspect",
+                "desc": "Inspect the UI element currently under the mouse cursor.",
+                "options": ["--json"],
+                "example": "hf inspect --json",
+            },
+            {
+                "name": "resolve",
+                "desc": "Test whether a selector JSON matches an element in the current UI.",
+                "options": ["--selector-file PATH", "--selector-json TEXT", "--title-regex REGEX"],
+                "example": "hf resolve --selector-file sel.json --title-regex Notepad",
+            },
+            {
+                "name": "canvas-selector",
+                "desc": "Detect the largest drawable canvas/pane in a window and return its selector JSON.",
+                "options": ["--title / --title-regex / --handle"],
+                "example": 'hf canvas-selector --title-regex "Paint"',
+            },
+        ],
+    },
+    {
+        "category": "Interaction (Click / Type)",
+        "commands": [
+            {
+                "name": "click",
+                "desc": "Click a UIA control identified by name, automation-id, or control type.",
+                "options": [
+                    "--title / --title-regex / --handle",
+                    "--name TEXT",
+                    "--name-regex REGEX",
+                    "--auto-id TEXT",
+                    "--control-type TEXT  (e.g. Button, Hyperlink, Edit)",
+                    "--control TEXT  (pywinauto best_match)",
+                    "--timeout INT (default 20s)",
+                ],
+                "example": 'hf click --title-regex "LinkedIn" --name "Sign in" --control-type Hyperlink',
+            },
+            {
+                "name": "type",
+                "desc": "Type text into a UIA control (Edit, RichEdit, etc.).",
+                "options": [
+                    "--title / --title-regex / --handle",
+                    "--text TEXT (required)",
+                    "--enter / --no-enter",
+                    "--name / --auto-id / --control-type / --control",
+                    "--timeout INT",
+                ],
+                "example": 'hf type --title-regex "Notepad" --control Edit --text "Hello!" --enter',
+            },
+            {
+                "name": "click-at",
+                "desc": "Click at window-relative pixel coordinates.",
+                "options": ["--title / --title-regex / --handle", "--x INT (required)", "--y INT (required)"],
+                "example": 'hf click-at --title-regex "Paint" --x 400 --y 300',
+            },
+        ],
+    },
+    {
+        "category": "Mouse & Drag",
+        "commands": [
+            {
+                "name": "drag",
+                "desc": "Drag within a window using window-relative coordinates.",
+                "options": [
+                    "--title / --title-regex / --handle",
+                    "--start-x / --start-y / --end-x / --end-y (all required)",
+                    "--duration-ms INT",
+                    "--steps INT",
+                ],
+                "example": 'hf drag --title-regex "Paint" --start-x 100 --start-y 100 --end-x 400 --end-y 400',
+            },
+            {
+                "name": "drag-screen",
+                "desc": "Drag using absolute screen pixel coordinates.",
+                "options": [
+                    "--start-x / --start-y / --end-x / --end-y (all required)",
+                    "--backend pywinauto|sendinput (default pywinauto)",
+                    "--duration-ms / --steps / --pre-hold-ms / --post-hold-ms",
+                ],
+                "example": "hf drag-screen --start-x 350 --start-y 320 --end-x 950 --end-y 620 --backend sendinput",
+            },
+            {
+                "name": "drag-canvas",
+                "desc": "Drag inside the auto-detected canvas/content area. Preferred for drawing apps.",
+                "options": [
+                    "--title / --title-regex / --handle",
+                    "--x1 / --y1 / --x2 / --y2 (0.0–1.0 fractions of canvas size)",
+                    "--backend sendinput|pywinauto",
+                    "--pad INT (canvas edge padding)",
+                ],
+                "example": 'hf drag-canvas --title-regex "Paint" --x1 0.2 --y1 0.2 --x2 0.7 --y2 0.7 --backend sendinput',
+            },
+        ],
+    },
+    {
+        "category": "Record & Replay",
+        "commands": [
+            {
+                "name": "record",
+                "desc": "Record a UI macro (interactive or passive). Saves to YAML.",
+                "options": [
+                    "--out PATH (default macro.yaml)",
+                    "--passive  (auto-capture clicks/keys; press F9 to stop)",
+                    "--verbose",
+                    "--window-title-regex REGEX",
+                ],
+                "example": "hf record --out my_flow.yaml --passive",
+            },
+            {
+                "name": "run",
+                "desc": "Execute a recorded YAML macro.",
+                "options": ["PATH (positional, required)"],
+                "example": "hf run my_flow.yaml",
+            },
+        ],
+    },
+    {
+        "category": "Browser (Playwright)",
+        "commands": [
+            {
+                "name": "browser-open",
+                "desc": "Open a URL in a persistent browser session (login cookies survive).",
+                "options": [
+                    "--url TEXT (required)",
+                    "--browser chromium|firefox|webkit",
+                    "--headless / --no-headless",
+                ],
+                "example": 'hf browser-open --url "https://github.com"',
+            },
+            {
+                "name": "browser-navigate",
+                "desc": "Navigate the active browser session to a new URL.",
+                "options": ["--url TEXT (required)"],
+                "example": 'hf browser-navigate --url "https://github.com/login"',
+            },
+            {
+                "name": "browser-snapshot",
+                "desc": "Get the current page as an accessibility tree (aria) or plain text.",
+                "options": ["--fmt aria|text (default aria)"],
+                "example": "hf browser-snapshot --fmt aria",
+            },
+            {
+                "name": "browser-click",
+                "desc": "Click an element on the current page by CSS selector or visible text.",
+                "options": ["--selector CSS", "--text TEXT", "--exact / --no-exact"],
+                "example": 'hf browser-click --text "Sign in"',
+            },
+            {
+                "name": "browser-type",
+                "desc": "Type into an input on the current page.",
+                "options": ["--selector CSS (required)", "--text TEXT (required)", "--no-clear"],
+                "example": 'hf browser-type --selector "#email" --text "user@example.com"',
+            },
+            {
+                "name": "browser-screenshot",
+                "desc": "Save a screenshot of the current page.",
+                "options": ["--out PATH (default screenshot.png)", "--full-page"],
+                "example": "hf browser-screenshot --out page.png --full-page",
+            },
+            {
+                "name": "browser-eval",
+                "desc": "Evaluate JavaScript in the current page context.",
+                "options": ["--js TEXT (required)"],
+                "example": 'hf browser-eval --js "document.title"',
+            },
+            {
+                "name": "browser-links",
+                "desc": "List all hyperlinks on the current page (JSON).",
+                "options": [],
+                "example": "hf browser-links",
+            },
+        ],
+    },
+]
+
+
+@app.command("help")
+def agent_help(
+    json_out: bool = typer.Option(False, "--json", help="Output structured JSON (machine-readable)"),
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="Filter to a specific category"),
+):
+    """Agent-friendly command reference. Lists all commands grouped by category with key options and examples.
+
+    Use --json for machine-readable output. Use --category to filter (e.g. 'browser', 'drag').
+    """
+    data = _HELP_REFERENCE
+    if category:
+        cat_lower = category.lower()
+        data = [g for g in data if cat_lower in g["category"].lower()]
+        if not data:
+            console.print(f"[yellow]No category matching '{category}'. Available:[/yellow]")
+            for g in _HELP_REFERENCE:
+                console.print(f"  • {g['category']}")
+            raise typer.Exit(1)
+
+    if json_out:
+        console.print(json.dumps(data, ensure_ascii=False, indent=2))
+        return
+
+    from rich.panel import Panel
+    from rich.text import Text
+
+    console.print()
+    console.print(
+        Panel(
+            "[bold cyan]handsfree-windows[/bold cyan] — agent command reference\n"
+            "[dim]Run [bold]hf <command> --help[/bold] for full option details.[/dim]\n"
+            "[dim]Run [bold]hf help --json[/bold] for machine-readable output.[/dim]",
+            expand=False,
+        )
+    )
+
+    for group in data:
+        console.print(f"\n[bold yellow]{group['category']}[/bold yellow]")
+        t = Table(show_header=True, header_style="bold", box=None, pad_edge=False, show_edge=False)
+        t.add_column("Command", style="bold green", min_width=18, no_wrap=True)
+        t.add_column("Description", style="white", min_width=40)
+        t.add_column("Key Options / Example", style="dim")
+        for cmd in group["commands"]:
+            opts = "\n".join(cmd["options"]) if cmd["options"] else ""
+            detail = (opts + "\n[bold]eg:[/bold] " + cmd["example"]).strip()
+            t.add_row(cmd["name"], cmd["desc"], detail)
+        console.print(t)
+
+    console.print()
+
+
 if __name__ == "__main__":
     app()
